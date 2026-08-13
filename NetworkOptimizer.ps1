@@ -1,23 +1,41 @@
 #requires -RunAsAdministrator
-[CmdletBinding(SupportsShouldProcess = $true)]
+
 param(
-    [Parameter(Mandatory = $true, Position = 0)]
-    [ValidateSet("WiFi", "Wired", IgnoreCase = $true)]
-    [string]$Type,
-    [switch]$NoRestart
+    [Parameter(Mandatory = $true)]
+    [ValidateSet("WiFi", "Wired")]
+    [string]$Type
 )
 
-Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$src = Join-Path $PSScriptRoot "src"
+. "$PSScriptRoot\src\Adapter.ps1"
+. "$PSScriptRoot\src\WiFi.ps1"
+. "$PSScriptRoot\src\Wired.ps1"
 
-. (Join-Path $src "Output.ps1")
-. (Join-Path $src "AdapterDiscovery.ps1")
-. (Join-Path $src "AdapterProperties.ps1")
-. (Join-Path $src "PowerManagement.ps1")
-. (Join-Path $src "WiredOptimizer.ps1")
-. (Join-Path $src "WiFiOptimizer.ps1")
-. (Join-Path $src "Runner.ps1")
+$adapter = Get-NetworkAdapter -Type $Type
 
-exit (Invoke-NetRocket -ConnectionType $Type -SkipRestart:$NoRestart)
+if (-not $adapter) {
+    Write-Host "No $Type adapter found." -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
+Write-Host "NetRocket" -ForegroundColor Cyan
+Write-Host "Adapter: $($adapter.Name)"
+Write-Host "Device : $($adapter.InterfaceDescription)"
+Write-Host "Speed  : $($adapter.LinkSpeed)"
+Write-Host ""
+
+if ($Type -eq "WiFi") {
+    Optimize-WiFi -Adapter $adapter
+}
+else {
+    Optimize-Wired -Adapter $adapter
+}
+
+Write-Host ""
+Write-Host "Restarting adapter..." -ForegroundColor Yellow
+Restart-NetAdapter -Name $adapter.Name -Confirm:$false
+
+Write-Host ""
+Write-Host "Done. Run a speed test and compare the result." -ForegroundColor Green
